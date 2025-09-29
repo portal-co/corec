@@ -1,0 +1,9 @@
+[workspace]
+members=[]
+resolver="3"
+
+[workspace.package]
+license = "MPL-2.0"
+description = "The end-to-end-encrypted API for portal solutions"
+
+[workspace.dependencies]
