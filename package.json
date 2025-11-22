@@ -4,6 +4,7 @@
   "license": "MPL-2.0",
   "description": "The end-to-end-encrypted API for portal solutions",
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250927.0",
     "typescript": "^5.9.2",
     "zshy": "^0.4.2"
   }
