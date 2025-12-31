@@ -9,3 +9,4 @@ description = "The end-to-end-encrypted API for portal solutions"
 [workspace.dependencies]
 x-wing = "0.1.0-pre.2"
 slh-dsa = "0.1.0"
+base64 = { version = "0.22.1", default-features = false }

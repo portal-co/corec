@@ -6,4 +6,4 @@ license.workspace = true
 description.workspace = true
 
 [dependencies]
-base64 = { version = "0.22.1", default-features = false }
+base64.workspace = true
