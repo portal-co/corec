@@ -1,13 +1,14 @@
 # @portal-solutions/corec
 
 ## Description
-The end-to-end-encrypted API for portal solutions
+The end-to-end-encrypted API for Portal solutions, focusing on secure computation/communication.
 
 ## Goals
-- [ ] Add project goals
+- [ ] Implement E2EE API
+- [ ] Integrate with crypto libraries (`x-wing`, `slh-dsa`)
 
 ## Progress
-- [ ] Initial setup
+- [ ] Workspace setup with encryption crates
 
 ---
 *AI assisted*
