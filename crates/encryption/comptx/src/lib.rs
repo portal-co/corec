@@ -3,21 +3,25 @@
 use core::iter::{self, once};
 
 use base64::Engine;
-pub fn compress(data: &[u8], on_chunk: &mut (dyn FnMut(&mut (dyn Iterator<Item = u8>)) + '_)) {
-    for chunk in data.split(|a| *a == b'\n') {
-        on_chunk(&mut core::iter::once((chunk.len() as u64).to_le_bytes()).flatten());
-        if chunk.iter().all(|x| (*x as char).is_ascii_alphanumeric()) {
-            on_chunk(&mut once(0).chain(chunk.chunks(4).flat_map(|a| {
-                let mut b = [0u8; 3];
-                let x = base64::engine::general_purpose::STANDARD
-                    .decode_slice(a, &mut b)
-                    .unwrap();
-                b.into_iter().take(x)
-            })))
-        } else {
-            on_chunk(&mut once(1).chain(chunk.iter().cloned()));
-        }
-    }
+use either::Either;
+pub fn compress(data: &[u8]) -> impl Iterator<Item = u8> {
+    return data.split(|a| *a == b'\n').flat_map(|chunk| {
+        core::iter::once((chunk.len() as u64).to_le_bytes())
+            .flatten()
+            .chain(
+                if chunk.iter().all(|x| (*x as char).is_ascii_alphanumeric()) {
+                    Either::Left(once(0).chain(chunk.chunks(4).flat_map(|a| {
+                        let mut b = [0u8; 3];
+                        let x = base64::engine::general_purpose::STANDARD
+                            .decode_slice(a, &mut b)
+                            .unwrap();
+                        b.into_iter().take(x)
+                    })))
+                } else {
+                    Either::Right(once(1).chain(chunk.iter().cloned()))
+                },
+            )
+    });
 }
 pub fn decompress(mut data: impl Iterator<Item = u8>) -> impl Iterator<Item = u8> {
     enum State {
