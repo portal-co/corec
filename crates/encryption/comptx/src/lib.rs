@@ -47,7 +47,7 @@ pub fn decompress(mut data: impl Iterator<Item = u8>) -> impl Iterator<Item = u8
                 }
                 State::Data(0, _) => {
                     state = State::Len;
-                    return Some([b'\n'; 4].into_iter().take(1));
+                    return Some(Either::Right(once(b'\n')));
                 }
                 State::Data(len, mode) => {
                     let byte = match mode {
@@ -61,12 +61,11 @@ pub fn decompress(mut data: impl Iterator<Item = u8>) -> impl Iterator<Item = u8
                                 .encode_slice(&buf, &mut out)
                                 .unwrap();
                             state = State::Data(len - (x as u64), mode);
-                            out.into_iter().take(x)
+                            Either::Left(out.into_iter().take(x))
                         }
                         1 => {
                             state = State::Data(len - 1, mode);
-                            let x = [data.next()?; 4];
-                            x.into_iter().take(1)
+                            Either::Right(once(data.next()?))
                         }
                         _ => panic!("invalid mode"),
                     };
