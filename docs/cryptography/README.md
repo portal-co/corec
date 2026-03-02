@@ -100,6 +100,32 @@ No network calls are made during cryptographic operations; auditors can run test
 
 ---
 
+## Future Plans
+
+The following cryptographic upgrades are planned as further layers of data protection. Both schemes have properties that make off-the-shelf libraries unsuitable: the constructions must be tailored to the specific statement being proved or the specific access policy being enforced. For this reason they will be **custom implementations**, developed in-house and released publicly under a license compatible with MPL-2.0 so that the wider community can audit, critique, and contribute.
+
+### Zero-Knowledge Proofs
+
+A zero-knowledge proof (ZKP) lets one party convince another that a statement about secret data is true — without revealing the data itself. Planned applications include:
+
+- **Compliance without disclosure** — prove that a message was sent within a required time window, or that a transaction is within regulatory limits, without exposing the message or amount.
+- **Key ownership** — prove possession of a private key without signing a chosen message (avoids oracle attacks).
+- **Membership / revocation** — prove that a public key is (or is not) on a revocation list without revealing which key.
+
+The proof system will be chosen for compatibility with the post-quantum primitive suite already in use (hash-based / lattice-based), avoiding constructions that require a trusted setup or rely on elliptic-curve pairings.
+
+### Witness Encryption
+
+Witness encryption (WE) ties a ciphertext to an NP statement: the ciphertext can only be decrypted by a party who can produce a valid **witness** (a proof of the statement). Planned applications include:
+
+- **Conditional decryption** — data encrypted to a policy such as "decryptable only if a valid SLH-DSA signature over this document exists" or "decryptable after a future block hash is published".
+- **Dead-man switches** — encrypt backup keys so they become accessible only when a verifiable on-chain or off-chain condition is met.
+- **Delegated access without escrow** — grant decryption rights based on verifiable credentials, with no key escrow and no trusted intermediary.
+
+Because practical WE constructions are an active research area, this feature is longer-horizon. Development will track the academic literature and will not ship until the construction has received meaningful external review.
+
+---
+
 ## See Also
 
 - [Compliance](../compliance/README.md) — how these primitives satisfy regulatory requirements without compromising privacy
