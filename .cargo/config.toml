@@ -1,0 +1,8 @@
+# Build tests in release mode.
+#
+# slh-dsa signing (especially SLH-DSA-SHAKE-256s) is extremely slow in debug
+# builds because the algorithm performs thousands of hash invocations per
+# signature.  Compiling with optimisations keeps the test suite tractable
+# while still exercising correctness.
+[profile.test]
+inherits = "release"
