@@ -7,6 +7,14 @@
 //! every other subkey's serialised public material is attested by a
 //! signature from that signing subkey.
 //!
+//! # Stack usage warning
+//!
+//! `SLH-DSA-SHAKE-256s` signatures are large (~29 792 bytes each).  Values
+//! of [`Signature`] and [`SignedPublicKey`] are stack-allocated; calling
+//! code must ensure sufficient stack space is available.  On constrained
+//! platforms consider increasing the stack size or boxing these values
+//! manually once an allocator is available.
+//!
 //! # Key derivation
 //!
 //! ```text
@@ -25,13 +33,17 @@
 //! randomness injected), so the same [`UserSecretKey`] always produces the
 //! same key bundle.
 
+#![no_std]
 #![deny(missing_docs)]
 
 use sha3::{
     Shake256,
     digest::{ExtendableOutput, Update, XofReader},
 };
-use slh_dsa::{Shake256s, SigningKey, VerifyingKey, signature::Signer, signature::Verifier};
+use slh_dsa::{
+    Shake256s, Signature, SigningKey, VerifyingKey,
+    signature::{Signer, Verifier},
+};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// The user's main public key: the SLH-DSA-SHAKE-256s verifying key of the
@@ -128,33 +140,41 @@ impl SigningSubkey {
     ///
     /// Signing is deterministic: the same `key_bytes` always yield the same
     /// signature for a given [`UserSecretKey`].
-    pub fn sign_public_key(&self, key_bytes: &[u8]) -> SignedPublicKey {
+    ///
+    /// # Stack usage
+    /// The returned [`SignedPublicKey`] contains a ~29 792-byte
+    /// [`Signature<Shake256s>`] inline on the stack; see the [crate-level
+    /// warning](crate).
+    pub fn sign_public_key<'a>(&self, key_bytes: &'a [u8]) -> SignedPublicKey<'a> {
         // try_sign on SigningKey<P> cannot fail (no I/O, no state).
-        let sig = self.inner.try_sign(key_bytes).expect("slh-dsa sign failed");
-        SignedPublicKey {
-            key_bytes: key_bytes.to_vec(),
-            signature_bytes: sig.to_vec(),
-        }
+        let signature = self.inner.try_sign(key_bytes).expect("slh-dsa sign failed");
+        SignedPublicKey { key_bytes, signature }
     }
 }
 
 // ── Signed public key ────────────────────────────────────────────────────────
 
-/// A subkey's serialised public key together with the signing subkey's
-/// SLH-DSA-SHAKE-256s signature over it.
+/// A subkey's public key bytes together with the signing subkey's
+/// SLH-DSA-SHAKE-256s signature over them.
+///
+/// The `key_bytes` field borrows the slice passed to
+/// [`SigningSubkey::sign_public_key`]; no heap allocation is performed.
 ///
 /// Proving that [`key_bytes`](SignedPublicKey::key_bytes) belongs to a
 /// particular user requires only that user's [`UserPublicKey`] and a call to
 /// [`SignedPublicKey::verify`].  No trusted third party is involved.
-pub struct SignedPublicKey {
+///
+/// # Stack usage
+/// `signature` is ~29 792 bytes; see the [crate-level warning](crate).
+pub struct SignedPublicKey<'a> {
     /// The serialised public key bytes of the subkey.
-    pub key_bytes: Vec<u8>,
+    pub key_bytes: &'a [u8],
     /// The SLH-DSA-SHAKE-256s signature over [`key_bytes`](Self::key_bytes),
     /// produced by the user's [`SigningSubkey`].
-    pub signature_bytes: Vec<u8>,
+    pub signature: Signature<Shake256s>,
 }
 
-impl SignedPublicKey {
+impl<'a> SignedPublicKey<'a> {
     /// Verifies the signature against `user_public_key`.
     ///
     /// Returns `Ok(())` if and only if the signature is valid, confirming
@@ -164,10 +184,7 @@ impl SignedPublicKey {
         &self,
         user_public_key: &UserPublicKey,
     ) -> Result<(), slh_dsa::signature::Error> {
-        let sig =
-            slh_dsa::Signature::<Shake256s>::try_from(self.signature_bytes.as_slice())
-                .map_err(|_| slh_dsa::signature::Error::new())?;
-        user_public_key.verify(&self.key_bytes, &sig)
+        user_public_key.verify(self.key_bytes, &self.signature)
     }
 }
 
@@ -231,7 +248,7 @@ mod tests {
         let subkey_bytes = b"fake-subkey-public-key-bytes";
         let spk = signing.sign_public_key(subkey_bytes);
 
-        assert_eq!(spk.key_bytes, subkey_bytes);
+        assert_eq!(spk.key_bytes, subkey_bytes as &[u8]);
         assert!(spk.verify(&user_pk).is_ok());
     }
 
@@ -241,10 +258,13 @@ mod tests {
         let signing = usk.signing_subkey();
         let user_pk = signing.verifying_key().clone();
 
-        let mut spk = signing.sign_public_key(b"original-bytes");
-        spk.key_bytes = b"tampered-bytes".to_vec();
-
-        assert!(spk.verify(&user_pk).is_err());
+        // Reuse the signature over "original-bytes" but present different key_bytes.
+        let spk = signing.sign_public_key(b"original-bytes");
+        let tampered = SignedPublicKey {
+            key_bytes: b"tampered-bytes",
+            signature: spk.signature,
+        };
+        assert!(tampered.verify(&user_pk).is_err());
     }
 
     #[test]
@@ -272,9 +292,6 @@ mod tests {
     #[test]
     fn signing_subkey_seed_differs_from_custom_seed() {
         let usk = secret();
-        // The signing subkey uses domain "corec.sign.v1"; a custom seed with
-        // that same domain would yield the same bytes, but any other domain
-        // must differ.
         let seed = usk.derive_seed(b"corec.other.v1");
         let signing_seed = usk.derive_seed(b"corec.sign.v1");
         assert_ne!(seed.as_bytes(), signing_seed.as_bytes());
